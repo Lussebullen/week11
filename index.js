@@ -9,8 +9,8 @@ import {
 } from "sequelize";
 import { Book, Author, Member, Loan } from "./models/index.js";
 
+
 const app = express();
-app.use(express.json());
 
 const port = process.env.APP_PORT;
 
@@ -352,6 +352,7 @@ app.delete("/members/:id", async (req, res) => {
   }
 });
 
+
 try {
   await sequelize.authenticate();
   console.log("Connected to PostgreSQL");
@@ -359,6 +360,25 @@ try {
   console.error("Database connection failed:", err);
   process.exit(1);
 }
+
+
+//Intentionally trigger an error to test Sentry integration
+app.get("/debug-sentry", function mainHandler(req, res) {
+  // Send a log before throwing the error
+  Sentry.logger.info('User triggered test error', {
+    action: 'test_error_endpoint',
+  });
+  throw new Error("My first Sentry error!");
+});  
+
+app.get("/", function rootHandler(req, res) {
+  res.end("Hello world!");
+});
+
+// Depricatred: Sentry.setupExpressRequestHandler(app);
+//Sentry.setupExpressErrorHandler(app, { shouldHandleError: (error) => error.status >= 400 })
+
+app.use(express.json());
 
 app.listen(port, (err) => {
   if (err) {
