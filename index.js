@@ -375,7 +375,7 @@ app.get("/", function rootHandler(req, res) {
   res.end("Hello world!");
 });
 
-// Depricatred: Sentry.setupExpressRequestHandler(app);
+// Depricatred: Sentry.setupExpressErrorHandler(app);
 //Sentry.setupExpressErrorHandler(app, { shouldHandleError: (error) => error.status >= 400 })
 
 app.use(express.json());
