@@ -48,18 +48,26 @@ app.get("/books", async (req, res) => {
   if (genre) where.genre = genre;
 
   try {
+
     const books = await Book.findAll({
       where,
       order: [[sort, "ASC"]],
     });
-
+    logger.info('Fetching books', {
+      action: 'fetch_books',
+      genre: genre || 'all',
+      sort: sort,
+    });
     // If the list of books is empty, return a 404 status code with a message
     if (books.length === 0) {
       return res.status(404).send("No books were found that match your criteria");
     }
     res.json(books);
   } catch (err) {
-    console.error(err);
+    if (err instanceof Error) {
+      Sentry.captureException(err);
+      res.status(500).send(err.message);
+    } 
     res.status(500).send("Internal server error");
   }
 });
@@ -77,7 +85,10 @@ app.get("/books/:id", async (req, res) => {
     }
     res.json(book);
   } catch (err) {
-    console.error(err);
+    if (err instanceof Error) {
+      Sentry.captureException(err);
+      res.status(500).send(err.message);
+    }
     res.status(500).send("Internal server error");
   }
 });
@@ -89,8 +100,17 @@ app.post("/books", async (req, res) => {
   }
   try {
     const book = await Book.create({ title, genre, published_year, author_id });
+    logger.info('Created new book', {
+      action: 'create_book',
+      book_id: book.id,
+      title: book.title,
+    });
     res.status(201).json(book);
   } catch (err) {
+    if (err instanceof Error) {
+      Sentry.captureException(err);
+      res.status(500).send(err.message);
+    }
     handleWriteError(err, res);
   }
 });
@@ -111,9 +131,18 @@ app.put("/books/:id", async (req, res) => {
       return res.status(404).send("Book not found");
     }
     await book.update({ title, genre, published_year, author_id });
+    logger.info('Updated book', {
+      action: 'update_book',
+      book_id: book.id,
+      title: book.title,
+    });
     res.json(book);
   } catch (err) {
-    handleWriteError(err, res);
+    if (err instanceof Error) {
+      Sentry.captureException(err);
+      res.status(500).send(err.message);
+    }
+    res.status(500).send("Internal server error");
   }
 });
 
@@ -138,9 +167,18 @@ app.patch("/books/:id", async (req, res) => {
       return res.status(404).send("Book not found");
     }
     await book.update(updates);
+    logger.info('Updated book', {
+      action: 'update_book',
+      book_id: book.id,
+      title: book.title,
+    });
     res.json(book);
   } catch (err) {
-    handleWriteError(err, res);
+    if (err instanceof Error) {
+      Sentry.captureException(err);
+      res.status(500).send(err.message);
+    }
+    res.status(500).send("Internal server error");
   }
 });
 
@@ -155,12 +193,20 @@ app.delete("/books/:id", async (req, res) => {
       return res.status(404).send("Book not found");
     }
     await book.destroy();
+    logger.info('Deleted book', {
+      action: 'delete_book',
+      book_id: book.id,
+      title: book.title,
+    });
     res.json(book);
   } catch (err) {
     if (err instanceof ForeignKeyConstraintError) {
       return res.status(409).send("Book has loan records and cannot be deleted");
     }
-    console.error(err);
+    if (err instanceof Error) {
+      Sentry.captureException(err);
+      res.status(500).send(err.message);
+    }
     res.status(500).send("Internal server error");
   }
 });
@@ -168,9 +214,15 @@ app.delete("/books/:id", async (req, res) => {
 app.get("/authors", async (req, res) => {
   try {
     const authors = await Author.findAll();
+    logger.info('Fetching authors', {
+      action: 'fetch_authors',
+    });
     res.json(authors);
   } catch (err) {
-    console.error(err);
+    if (err instanceof Error) {
+      Sentry.captureException(err);
+      res.status(500).send(err.message);
+    }
     res.status(500).send("Internal server error");
   }
 });
@@ -184,6 +236,10 @@ app.get("/authors/:id/books", async (req, res) => {
   try {
     // One query: the author and all their books
     const author = await Author.findByPk(id, { include: Book });
+    logger.info('Fetching books for author', {
+      action: 'fetch_author_books',
+      author_id: id,
+    });
 
     // Case 1: the author doesn't exist
     if (!author) {
@@ -208,7 +264,10 @@ app.get("/authors/:id/books", async (req, res) => {
       }))
     );
   } catch (err) {
-    console.error(err);
+    if (err instanceof Error) {
+      Sentry.captureException(err);
+      res.status(500).send(err.message);
+    }
     res.status(500).send("Internal server error");
   }
 });
@@ -217,12 +276,18 @@ app.post("/authors", async (req, res) => {
   const { name } = req.body;
   try {
     const author = await Author.create({ name });
+    logger.info('Created new author', {
+      action: 'create_author',
+      author_id: author.id,
+      name: author.name,
+    });
     res.status(201).json(author);
   } catch (err) {
     if (err instanceof ValidationError) {
+      Sentry.captureException(err);
       return res.status(400).json({ errors: err.errors.map((e) => e.message) });
     }
-    console.error(err);
+    Sentry.captureException(err);
     res.status(500).send("Internal server error");
   }
 });
@@ -235,15 +300,26 @@ function handleMemberWriteError(err, res) {
   if (err instanceof ValidationError) {
     return res.status(400).json({ errors: err.errors.map((e) => e.message) });
   }
-  serverError(err, res);
+  Sentry.captureException(err);
+  res.status(500).send("Internal server error");
 }
 
 app.post("/members", async (req, res) => {
   const { name, address, phone, email } = req.body;
   try {
     const member = await Member.create({ name, address, phone, email });
+    logger.info('Created new member', {
+      action: 'create_member',
+      member_id: member.id,
+      name: member.name,
+      email: member.email,
+    });
     res.status(201).json(member);
   } catch (err) {
+    if (err instanceof Error) {
+      Sentry.captureException(err);
+      res.status(500).send(err.message);
+    }
     handleMemberWriteError(err, res);
   }
 });
@@ -264,7 +340,11 @@ app.get("/members", async (req, res) => {
     const members = await Member.findAll({ where, order: [[sort, "ASC"]] });
     res.json(members);
   } catch (err) {
-    serverError(err, res);
+    if (err instanceof Error) {
+      Sentry.captureException(err);
+      res.status(500).send(err.message);
+    }
+    res.status(500).send("Internal server error");
   }
 });
 
@@ -275,12 +355,20 @@ app.get("/members/:id", async (req, res) => {
   }
   try {
     const member = await Member.findByPk(id);
+    logger.info('Fetching member', {
+      action: 'fetch_member',
+      member_id: id,
+    });
     if (!member) {
       return res.status(404).send("Member not found");
     }
     res.json(member);
   } catch (err) {
-    serverError(err, res);
+    if (err instanceof Error) {
+      Sentry.captureException(err);
+      res.status(500).send(err.message);
+    }
+    res.status(500).send("Internal server error");
   }
 });
 
@@ -296,13 +384,21 @@ app.put("/members/:id", async (req, res) => {
   }
   try {
     const member = await Member.findByPk(id);
+    logger.info('Updating member', {
+      action: 'update_member',
+      member_id: id,
+    });
     if (!member) {
       return res.status(404).send("Member not found");
     }
     await member.update({ name, address: address ?? null, phone: phone ?? null, email });
     res.json(member);
   } catch (err) {
-    handleMemberWriteError(err, res);
+    if (err instanceof Error) {
+      Sentry.captureException(err);
+      res.status(500).send(err.message);
+    }
+    res.status(500).send("Internal server error");
   }
 });
 
@@ -322,13 +418,21 @@ app.patch("/members/:id", async (req, res) => {
 
   try {
     const member = await Member.findByPk(id);
+    logger.info('Updating member', {
+      action: 'update_member',
+      member_id: id,
+    });
     if (!member) {
       return res.status(404).send("Member not found");
     }
     await member.update(updates);
     res.json(member);
   } catch (err) {
-    handleMemberWriteError(err, res);
+    if (err instanceof Error) {
+      Sentry.captureException(err);
+      res.status(500).send(err.message);
+    }
+    res.status(500).send("Internal server error");
   }
 });
 
@@ -339,6 +443,10 @@ app.delete("/members/:id", async (req, res) => {
   }
   try {
     const member = await Member.findByPk(id);
+    logger.info('Deleting member', {
+      action: 'delete_member',
+      member_id: id,
+    });
     if (!member) {
       return res.status(404).send("Member not found");
     }
@@ -348,7 +456,11 @@ app.delete("/members/:id", async (req, res) => {
     if (err instanceof ForeignKeyConstraintError) {
       return res.status(409).send("Member has loan records and cannot be deleted");
     }
-    serverError(err, res);
+    if (err instanceof Error) {
+      Sentry.captureException(err);
+      res.status(500).send(err.message);
+    }
+    res.status(500).send("Internal server error");
   }
 });
 
