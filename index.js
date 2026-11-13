@@ -353,20 +353,20 @@ app.delete("/members/:id", async (req, res) => {
 });
 
 
-try {
+/* try {
   await sequelize.authenticate();
   console.log("Connected to PostgreSQL");
 } catch (err) {
   console.error("Database connection failed:", err);
   process.exit(1);
-}
+} */
 
 
 //Intentionally trigger an error to test Sentry integration
 app.get("/debug-sentry", function mainHandler(req, res) {
   // Send a log before throwing the error
-  Sentry.logger.info('User triggered test error', {
-    action: 'test_error_endpoint',
+  logger.info('User triggered test error', {
+  action: 'test_error_endpoint',
   });
   throw new Error("My first Sentry error!");
 });  
