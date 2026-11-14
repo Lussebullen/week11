@@ -1,7 +1,7 @@
 {
-  "name": "week10-TDD",
+  "name": "week11-Sonarqube",
   "version": "1.0.0",
-  "description": "Same as before (2 Docker containers), but with an important addition. We will also use the \"pg\"-package,\r and connect Express to postgreSQL.",
+  "description": "This branch implements SonarQube integration.",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -12,15 +12,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lussebullen/week10-TDD.git"
+    "url": "git+https://github.com/lussebullen/week11-Sonarqube.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/lussebullen/week10-TDD/issues"
+    "url": "https://github.com/lussebullen/week11-Sonarqube/issues"
   },
-  "homepage": "https://github.com/lussebullen/week10-TDD#readme",
+  "homepage": "https://github.com/lussebullen/week11-Sonarqube#readme",
   "dependencies": {
     "dotenv": "^18.0.6",
     "express": "^5.2.1",
@@ -29,6 +29,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@sonar/scan": "^5.1.0",
     "@vitest/coverage-v8": "^5.1.0",
     "vitest": "^5.1.0"
   }

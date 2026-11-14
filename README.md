@@ -1,6 +1,14 @@
-# TDD (Test Driven Development)
-- Task 1 done.  
-- Task 2 done.
-- Task 3 in progress: I renamed our previous test files so that vitest can focus on the zod schemas alone. I put the schemas in a separate file as well, **schemas.ts** and started with OrderIdSchema test.
-Both zod schemas (OrderIdSchema and AmountSchema) tested and passed.  
-Now for the last 2 schemas, PizzaTypeSchema and PizzaSchema **all passing**.
+# SonarQube
+
+## Task-1 Preparation
+- Docker image for sonarqube downloaded
+- compose.yml file created
+- port added to .env
+- scanner installed with dev dependency
+- run scanner with these 3 commands (written as 1-liner to make it work):  
+sonar-scanner-npm "-Dsonar.host.url=http://localhost:9000" "-Dsonar.token=your token" "-Dsonar.projectKey=items-project"  
+
+## Task-2 The scan
+The scan finnished successfully (see image below)  
+![#Task-2](screenshots/scan-passed.png)
+
