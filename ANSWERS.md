@@ -29,5 +29,5 @@ I am sorry but I could not get Sentry to report more errors so I can not answer 
 ## 7. The difference between a breadcrumb and a tag?
 I guess breadcrumbs leave traces to why the error appeared, while the tag is like a sticker on the error report so that we can group them together and assign them with more ease to group members (saying something like "Fix all issues tagged as XX").
 
-## 7. what does each tool give you that the other doesn't?
+## 8. what does each tool give you that the other doesn't?
 Not sure what tool you mean except Sentry. But from what I can see all tools complement eachother, otherwise there would be no need of new tools doing the same thing. Well it actually would, if the new tools would become more efficient with every version. Sentry catches errors the other tools do not, such as connectivity problems (it's the only one thing I learned from this extremely tediuos exercise)
