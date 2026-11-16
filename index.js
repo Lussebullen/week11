@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import * as Sentry from "@sentry/node";
 import { sequelize } from "./sequalize.js";
 import {
   Op,
@@ -9,12 +10,24 @@ import {
 } from "sequelize";
 import { Book, Author, Member, Loan } from "./models/index.js";
 
+// Sentry is initialized in instrument.js (loaded with --import).
+// Here we only use it, so we pull out Sentry's structured logger.
+const { logger } = Sentry;
 
 const app = express();
+
+// Must be registered BEFORE the routes, otherwise req.body is never parsed
+app.use(express.json());
 
 const port = process.env.APP_PORT;
 
 const isValidId = (id) => /^\d+$/.test(String(id));
+
+// Report unexpected errors to Sentry, but never send err.message to the user
+function sendServerError(err, res) {
+  Sentry.captureException(err);
+  res.status(500).send("Internal server error");
+}
 
 // Shared error handling for routes that write books
 function handleWriteError(err, res) {
@@ -24,14 +37,12 @@ function handleWriteError(err, res) {
   if (err instanceof ValidationError) {
     return res.status(400).json({ errors: err.errors.map((e) => e.message) });
   }
-  console.error(err);
-  res.status(500).send("Internal server error");
+  sendServerError(err, res);
 }
 
 app.get("/", (req, res) => {
-    res.send("Welcome to the Library API!");
+  res.send("Welcome to the Library API!");
 });
-
 
 const allowedSorts = ["id", "title", "genre", "published_year"];
 
@@ -48,14 +59,13 @@ app.get("/books", async (req, res) => {
   if (genre) where.genre = genre;
 
   try {
-
     const books = await Book.findAll({
       where,
       order: [[sort, "ASC"]],
     });
-    logger.info('Fetching books', {
-      action: 'fetch_books',
-      genre: genre || 'all',
+    logger.info("Fetching books", {
+      action: "fetch_books",
+      genre: genre || "all",
       sort: sort,
     });
     // If the list of books is empty, return a 404 status code with a message
@@ -64,11 +74,7 @@ app.get("/books", async (req, res) => {
     }
     res.json(books);
   } catch (err) {
-    if (err instanceof Error) {
-      Sentry.captureException(err);
-      res.status(500).send(err.message);
-    } 
-    res.status(500).send("Internal server error");
+    sendServerError(err, res);
   }
 });
 
@@ -85,11 +91,7 @@ app.get("/books/:id", async (req, res) => {
     }
     res.json(book);
   } catch (err) {
-    if (err instanceof Error) {
-      Sentry.captureException(err);
-      res.status(500).send(err.message);
-    }
-    res.status(500).send("Internal server error");
+    sendServerError(err, res);
   }
 });
 
@@ -100,17 +102,13 @@ app.post("/books", async (req, res) => {
   }
   try {
     const book = await Book.create({ title, genre, published_year, author_id });
-    logger.info('Created new book', {
-      action: 'create_book',
+    logger.info("Created new book", {
+      action: "create_book",
       book_id: book.id,
       title: book.title,
     });
     res.status(201).json(book);
   } catch (err) {
-    if (err instanceof Error) {
-      Sentry.captureException(err);
-      res.status(500).send(err.message);
-    }
     handleWriteError(err, res);
   }
 });
@@ -131,18 +129,14 @@ app.put("/books/:id", async (req, res) => {
       return res.status(404).send("Book not found");
     }
     await book.update({ title, genre, published_year, author_id });
-    logger.info('Updated book', {
-      action: 'update_book',
+    logger.info("Updated book", {
+      action: "update_book",
       book_id: book.id,
       title: book.title,
     });
     res.json(book);
   } catch (err) {
-    if (err instanceof Error) {
-      Sentry.captureException(err);
-      res.status(500).send(err.message);
-    }
-    res.status(500).send("Internal server error");
+    sendServerError(err, res);
   }
 });
 
@@ -167,18 +161,14 @@ app.patch("/books/:id", async (req, res) => {
       return res.status(404).send("Book not found");
     }
     await book.update(updates);
-    logger.info('Updated book', {
-      action: 'update_book',
+    logger.info("Updated book", {
+      action: "update_book",
       book_id: book.id,
       title: book.title,
     });
     res.json(book);
   } catch (err) {
-    if (err instanceof Error) {
-      Sentry.captureException(err);
-      res.status(500).send(err.message);
-    }
-    res.status(500).send("Internal server error");
+    sendServerError(err, res);
   }
 });
 
@@ -193,8 +183,8 @@ app.delete("/books/:id", async (req, res) => {
       return res.status(404).send("Book not found");
     }
     await book.destroy();
-    logger.info('Deleted book', {
-      action: 'delete_book',
+    logger.info("Deleted book", {
+      action: "delete_book",
       book_id: book.id,
       title: book.title,
     });
@@ -203,27 +193,19 @@ app.delete("/books/:id", async (req, res) => {
     if (err instanceof ForeignKeyConstraintError) {
       return res.status(409).send("Book has loan records and cannot be deleted");
     }
-    if (err instanceof Error) {
-      Sentry.captureException(err);
-      res.status(500).send(err.message);
-    }
-    res.status(500).send("Internal server error");
+    sendServerError(err, res);
   }
 });
 
 app.get("/authors", async (req, res) => {
   try {
     const authors = await Author.findAll();
-    logger.info('Fetching authors', {
-      action: 'fetch_authors',
+    logger.info("Fetching authors", {
+      action: "fetch_authors",
     });
     res.json(authors);
   } catch (err) {
-    if (err instanceof Error) {
-      Sentry.captureException(err);
-      res.status(500).send(err.message);
-    }
-    res.status(500).send("Internal server error");
+    sendServerError(err, res);
   }
 });
 
@@ -236,8 +218,8 @@ app.get("/authors/:id/books", async (req, res) => {
   try {
     // One query: the author and all their books
     const author = await Author.findByPk(id, { include: Book });
-    logger.info('Fetching books for author', {
-      action: 'fetch_author_books',
+    logger.info("Fetching books for author", {
+      action: "fetch_author_books",
       author_id: id,
     });
 
@@ -264,11 +246,7 @@ app.get("/authors/:id/books", async (req, res) => {
       }))
     );
   } catch (err) {
-    if (err instanceof Error) {
-      Sentry.captureException(err);
-      res.status(500).send(err.message);
-    }
-    res.status(500).send("Internal server error");
+    sendServerError(err, res);
   }
 });
 
@@ -276,19 +254,17 @@ app.post("/authors", async (req, res) => {
   const { name } = req.body;
   try {
     const author = await Author.create({ name });
-    logger.info('Created new author', {
-      action: 'create_author',
+    logger.info("Created new author", {
+      action: "create_author",
       author_id: author.id,
       name: author.name,
     });
     res.status(201).json(author);
   } catch (err) {
     if (err instanceof ValidationError) {
-      Sentry.captureException(err);
       return res.status(400).json({ errors: err.errors.map((e) => e.message) });
     }
-    Sentry.captureException(err);
-    res.status(500).send("Internal server error");
+    sendServerError(err, res);
   }
 });
 
@@ -300,26 +276,21 @@ function handleMemberWriteError(err, res) {
   if (err instanceof ValidationError) {
     return res.status(400).json({ errors: err.errors.map((e) => e.message) });
   }
-  Sentry.captureException(err);
-  res.status(500).send("Internal server error");
+  sendServerError(err, res);
 }
 
 app.post("/members", async (req, res) => {
   const { name, address, phone, email } = req.body;
   try {
     const member = await Member.create({ name, address, phone, email });
-    logger.info('Created new member', {
-      action: 'create_member',
+    logger.info("Created new member", {
+      action: "create_member",
       member_id: member.id,
       name: member.name,
       email: member.email,
     });
     res.status(201).json(member);
   } catch (err) {
-    if (err instanceof Error) {
-      Sentry.captureException(err);
-      res.status(500).send(err.message);
-    }
     handleMemberWriteError(err, res);
   }
 });
@@ -340,11 +311,7 @@ app.get("/members", async (req, res) => {
     const members = await Member.findAll({ where, order: [[sort, "ASC"]] });
     res.json(members);
   } catch (err) {
-    if (err instanceof Error) {
-      Sentry.captureException(err);
-      res.status(500).send(err.message);
-    }
-    res.status(500).send("Internal server error");
+    sendServerError(err, res);
   }
 });
 
@@ -355,8 +322,8 @@ app.get("/members/:id", async (req, res) => {
   }
   try {
     const member = await Member.findByPk(id);
-    logger.info('Fetching member', {
-      action: 'fetch_member',
+    logger.info("Fetching member", {
+      action: "fetch_member",
       member_id: id,
     });
     if (!member) {
@@ -364,11 +331,7 @@ app.get("/members/:id", async (req, res) => {
     }
     res.json(member);
   } catch (err) {
-    if (err instanceof Error) {
-      Sentry.captureException(err);
-      res.status(500).send(err.message);
-    }
-    res.status(500).send("Internal server error");
+    sendServerError(err, res);
   }
 });
 
@@ -384,8 +347,8 @@ app.put("/members/:id", async (req, res) => {
   }
   try {
     const member = await Member.findByPk(id);
-    logger.info('Updating member', {
-      action: 'update_member',
+    logger.info("Updating member", {
+      action: "update_member",
       member_id: id,
     });
     if (!member) {
@@ -394,11 +357,7 @@ app.put("/members/:id", async (req, res) => {
     await member.update({ name, address: address ?? null, phone: phone ?? null, email });
     res.json(member);
   } catch (err) {
-    if (err instanceof Error) {
-      Sentry.captureException(err);
-      res.status(500).send(err.message);
-    }
-    res.status(500).send("Internal server error");
+    sendServerError(err, res);
   }
 });
 
@@ -418,8 +377,8 @@ app.patch("/members/:id", async (req, res) => {
 
   try {
     const member = await Member.findByPk(id);
-    logger.info('Updating member', {
-      action: 'update_member',
+    logger.info("Updating member", {
+      action: "update_member",
       member_id: id,
     });
     if (!member) {
@@ -428,11 +387,7 @@ app.patch("/members/:id", async (req, res) => {
     await member.update(updates);
     res.json(member);
   } catch (err) {
-    if (err instanceof Error) {
-      Sentry.captureException(err);
-      res.status(500).send(err.message);
-    }
-    res.status(500).send("Internal server error");
+    sendServerError(err, res);
   }
 });
 
@@ -443,8 +398,8 @@ app.delete("/members/:id", async (req, res) => {
   }
   try {
     const member = await Member.findByPk(id);
-    logger.info('Deleting member', {
-      action: 'delete_member',
+    logger.info("Deleting member", {
+      action: "delete_member",
       member_id: id,
     });
     if (!member) {
@@ -456,14 +411,9 @@ app.delete("/members/:id", async (req, res) => {
     if (err instanceof ForeignKeyConstraintError) {
       return res.status(409).send("Member has loan records and cannot be deleted");
     }
-    if (err instanceof Error) {
-      Sentry.captureException(err);
-      res.status(500).send(err.message);
-    }
-    res.status(500).send("Internal server error");
+    sendServerError(err, res);
   }
 });
-
 
 /* try {
   await sequelize.authenticate();
@@ -473,24 +423,18 @@ app.delete("/members/:id", async (req, res) => {
   process.exit(1);
 } */
 
-
-//Intentionally trigger an error to test Sentry integration
+// Intentionally trigger an error to test Sentry integration
 app.get("/debug-sentry", function mainHandler(req, res) {
   // Send a log before throwing the error
-  logger.info('User triggered test error', {
-  action: 'test_error_endpoint',
+  logger.info("User triggered test error", {
+    action: "test_error_endpoint",
   });
   throw new Error("My first Sentry error!");
-});  
-
-app.get("/", function rootHandler(req, res) {
-  res.end("Hello world!");
 });
 
-// Depricatred: Sentry.setupExpressErrorHandler(app);
-//Sentry.setupExpressErrorHandler(app, { shouldHandleError: (error) => error.status >= 400 })
 
-app.use(express.json());
+// Deprecated in Sentry v11 (errors are captured by expressIntegration):
+// Sentry.setupExpressErrorHandler(app);
 
 app.listen(port, (err) => {
   if (err) {

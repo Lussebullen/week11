@@ -4,8 +4,7 @@ There are obviously different ways to achieve the same behaviour with Sentry and
 ![#Q1](screenshots/init.png)
 
 ## 2. Why do we keep the DSN in .env instead of in the code?
-It's a good practice, although the hiding aspect is not as important in this case. See the explanation below from Claude:    
-![#Q2](screenshots/hiding.png)
+It's a good practice, although the hiding aspect is not as important in this case. Another reason would be that we can use the same code for different scenarios like a production setup and a development setup that only differ in the value Sentry value used.
 
 ## 3. What did Sentry recorded?
 I would say alot. File name and location can be found in the e-mail received
