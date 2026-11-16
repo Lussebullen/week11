@@ -23,8 +23,11 @@ const port = process.env.APP_PORT;
 
 const isValidId = (id) => /^\d+$/.test(String(id));
 
-// Report unexpected errors to Sentry, but never send err.message to the user
-function sendServerError(err, res) {
+// Add context (breadcrumb + tag), report unexpected errors to Sentry,
+// and never send err.message to the user
+function reportError(err, res, feature, message) {
+  Sentry.addBreadcrumb({ message, level: "info" });
+  Sentry.setTag("feature", feature);
   Sentry.captureException(err);
   res.status(500).send("Internal server error");
 }
@@ -37,7 +40,7 @@ function handleWriteError(err, res) {
   if (err instanceof ValidationError) {
     return res.status(400).json({ errors: err.errors.map((e) => e.message) });
   }
-  sendServerError(err, res);
+  reportError(err, res, "books", "create book route");
 }
 
 app.get("/", (req, res) => {
@@ -74,7 +77,7 @@ app.get("/books", async (req, res) => {
     }
     res.json(books);
   } catch (err) {
-    sendServerError(err, res);
+    reportError(err, res, "books", "fetch books route");
   }
 });
 
@@ -91,7 +94,7 @@ app.get("/books/:id", async (req, res) => {
     }
     res.json(book);
   } catch (err) {
-    sendServerError(err, res);
+    reportError(err, res, "books", "fetch book by id route");
   }
 });
 
@@ -136,7 +139,7 @@ app.put("/books/:id", async (req, res) => {
     });
     res.json(book);
   } catch (err) {
-    sendServerError(err, res);
+    reportError(err, res, "books", "replace book route");
   }
 });
 
@@ -168,7 +171,7 @@ app.patch("/books/:id", async (req, res) => {
     });
     res.json(book);
   } catch (err) {
-    sendServerError(err, res);
+    reportError(err, res, "books", "update book route");
   }
 });
 
@@ -193,7 +196,7 @@ app.delete("/books/:id", async (req, res) => {
     if (err instanceof ForeignKeyConstraintError) {
       return res.status(409).send("Book has loan records and cannot be deleted");
     }
-    sendServerError(err, res);
+    reportError(err, res, "books", "delete book route");
   }
 });
 
@@ -205,7 +208,7 @@ app.get("/authors", async (req, res) => {
     });
     res.json(authors);
   } catch (err) {
-    sendServerError(err, res);
+    reportError(err, res, "authors", "fetch authors route");
   }
 });
 
@@ -246,7 +249,7 @@ app.get("/authors/:id/books", async (req, res) => {
       }))
     );
   } catch (err) {
-    sendServerError(err, res);
+    reportError(err, res, "authors", "fetch author books route");
   }
 });
 
@@ -264,7 +267,7 @@ app.post("/authors", async (req, res) => {
     if (err instanceof ValidationError) {
       return res.status(400).json({ errors: err.errors.map((e) => e.message) });
     }
-    sendServerError(err, res);
+    reportError(err, res, "authors", "create author route");
   }
 });
 
@@ -276,7 +279,7 @@ function handleMemberWriteError(err, res) {
   if (err instanceof ValidationError) {
     return res.status(400).json({ errors: err.errors.map((e) => e.message) });
   }
-  sendServerError(err, res);
+  reportError(err, res, "members", "create member route");
 }
 
 app.post("/members", async (req, res) => {
@@ -311,7 +314,7 @@ app.get("/members", async (req, res) => {
     const members = await Member.findAll({ where, order: [[sort, "ASC"]] });
     res.json(members);
   } catch (err) {
-    sendServerError(err, res);
+    reportError(err, res, "members", "fetch members route");
   }
 });
 
@@ -331,7 +334,7 @@ app.get("/members/:id", async (req, res) => {
     }
     res.json(member);
   } catch (err) {
-    sendServerError(err, res);
+    reportError(err, res, "members", "fetch member by id route");
   }
 });
 
@@ -357,7 +360,7 @@ app.put("/members/:id", async (req, res) => {
     await member.update({ name, address: address ?? null, phone: phone ?? null, email });
     res.json(member);
   } catch (err) {
-    sendServerError(err, res);
+    reportError(err, res, "members", "replace member route");
   }
 });
 
@@ -387,7 +390,7 @@ app.patch("/members/:id", async (req, res) => {
     await member.update(updates);
     res.json(member);
   } catch (err) {
-    sendServerError(err, res);
+    reportError(err, res, "members", "update member route");
   }
 });
 
@@ -411,7 +414,7 @@ app.delete("/members/:id", async (req, res) => {
     if (err instanceof ForeignKeyConstraintError) {
       return res.status(409).send("Member has loan records and cannot be deleted");
     }
-    sendServerError(err, res);
+    reportError(err, res, "members", "delete member route");
   }
 });
 
@@ -431,7 +434,6 @@ app.get("/debug-sentry", function mainHandler(req, res) {
   });
   throw new Error("My first Sentry error!");
 });
-
 
 // Deprecated in Sentry v11 (errors are captured by expressIntegration):
 // Sentry.setupExpressErrorHandler(app);
